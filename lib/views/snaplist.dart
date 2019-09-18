@@ -43,11 +43,11 @@ class PeopleSpanlist extends StatelessWidget {
           borderRadius: new BorderRadius.circular(16.0),
           child: Container(
             color: Colors.white,
-            child: new CustomScrollView(
+            child: (index < items.length - 1) ? new CustomScrollView(
               slivers: <Widget>[
                 SliverList(
                   delegate: SliverChildListDelegate([
-                    (index < items.length - 1) ? new Column(
+                    new Column(
                       children: <Widget>[
                         new Container(
                           height: 350,
@@ -94,13 +94,11 @@ class PeopleSpanlist extends StatelessWidget {
                           },
                         )
                       ]
-                    ) : new Center(
-                      child: isError ? errorMessage : new CircularProgressIndicator(),
                     )
                   ])
                 )
               ],
-            )
+            ) : isError ? errorMessage : new Center(child: new CircularProgressIndicator())
           )
         );
       },

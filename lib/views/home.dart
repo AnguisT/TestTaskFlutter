@@ -22,6 +22,7 @@ class _HomePage extends State<HomePage> {
   SnaplistController _snaplistController = new SnaplistController();
   List<People> arrayPeople = [];
   bool refresingBottom = false;
+  bool errorBottom = false;
   bool isLoad = false;
   bool isError = false;
   bool isDetail = false;
@@ -42,25 +43,40 @@ class _HomePage extends State<HomePage> {
         setState(() {
           refresingBottom = true;
         });
-        getPeople();
+        getPeopleBottom();
       }
     });
   }
 
-  getPeople() {
-    httpClient.getPeople(count).then((res) {
+  getPeople() async {
+    await httpClient.getPeople(count).then((res) {
       List responseJson = res['results'];
       setState(() {
         List<People> items = responseJson.map((m) => new People.fromJson(m)).toList();
         arrayPeople = []..addAll(arrayPeople)..addAll(items);
-        refresingBottom = false;
         isLoad = false;
       });
     }).catchError((onError) {
       setState(() {
         isLoad = false;
-        refresingBottom = false;
         isError = true;
+      });
+    });
+  }
+
+  getPeopleBottom() async {
+    await httpClient.getPeople(count).then((res) {
+      List responseJson = res['results'];
+      setState(() {
+        List<People> items = responseJson.map((m) => new People.fromJson(m)).toList();
+        arrayPeople = []..addAll(arrayPeople)..addAll(items);
+        refresingBottom = false;
+        errorBottom = false;
+      });
+    }).catchError((onError) {
+      setState(() {
+        refresingBottom = false;
+        errorBottom = true;
       });
     });
   }
@@ -84,11 +100,33 @@ class _HomePage extends State<HomePage> {
             textColor: Colors.blue,
             onPressed: () {
               setState(() {
-                refresingBottom = true;
                 isLoad = true;
                 isError = false;
               });
               getPeople();
+            },
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget errorMessageBottom() {
+    return new Container(
+      child: new Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          new Text('Произошла ошибка'),
+          new FlatButton(
+            child: new Text('Повторить'),
+            textColor: Colors.blue,
+            onPressed: () {
+              setState(() {
+                refresingBottom = true;
+                errorBottom = false;
+              });
+              getPeopleBottom();
             },
           )
         ],
@@ -170,7 +208,9 @@ class _HomePage extends State<HomePage> {
         automaticallyImplyLeading: false,
       ),
       body: new SafeArea(
-        child: (!isLoad || !isError) ? new Stack (
+        child: (isError || isLoad) ? new Center(
+          child: isLoad ? new CircularProgressIndicator() : errorMessage(),
+        ) : new Stack (
           children: [
             new Column(
               children: <Widget>[
@@ -184,7 +224,7 @@ class _HomePage extends State<HomePage> {
                   padding: const EdgeInsets.only(top: 30, bottom: 30),
                   child: new CircularProgressIndicator()
                 ) : new Container(),
-                isError ? errorMessage() : new Container(),
+                errorBottom ? errorMessageBottom() : new Container(),
               ],
             ),
             isDetail ? new BackdropFilter(
@@ -206,8 +246,6 @@ class _HomePage extends State<HomePage> {
               )
             ) : new Container()
           ]
-        ) : new Center(
-          child: isError ? errorMessage() : new CircularProgressIndicator(),
         )
       )
     );
