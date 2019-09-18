@@ -27,6 +27,7 @@ dependencies:
   font_awesome_flutter: ^8.5.0
   http: ^0.12.0+2
   strings: ^0.1.0
+  snaplist: ^0.1.8
 
 dev_dependencies:
   flutter_test:

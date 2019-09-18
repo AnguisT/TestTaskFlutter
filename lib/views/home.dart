@@ -1,9 +1,13 @@
 // package
+import 'dart:ui';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:snaplist/snaplist_controller.dart';
 import 'package:test_application/models/models.dart';
 import 'package:test_application/modules/http.client.dart';
 import 'package:strings/strings.dart';
+import 'package:test_application/views/snaplist.dart';
 
 class HomePage extends StatefulWidget {
 
@@ -15,48 +19,81 @@ class _HomePage extends State<HomePage> {
 
   CustomHttpClient httpClient = new CustomHttpClient();
   ScrollController _scrollController = new ScrollController();
+  SnaplistController _snaplistController = new SnaplistController();
   List<People> arrayPeople = [];
-  bool isLoaded = false;
+  bool refresingBottom = false;
+  bool isLoad = false;
   bool isError = false;
+  bool isDetail = false;
+  bool spanListError = false;
   int count = 10;
+  int initalIndex = 0;
+  int indexSelect = 0;
 
   @override
   void initState() {
     super.initState();
+    setState(() {
+      isLoad = true;
+    });
     getPeople();
     _scrollController.addListener(() {
       if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
         setState(() {
-          isLoaded = false;
-        });        
+          refresingBottom = true;
+        });
         getPeople();
       }
     });
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   getPeople() {
     httpClient.getPeople(count).then((res) {
       List responseJson = res['results'];
       setState(() {
-        var items = responseJson.map((m) => new People.fromJson(m)).toList();
+        List<People> items = responseJson.map((m) => new People.fromJson(m)).toList();
         arrayPeople = []..addAll(arrayPeople)..addAll(items);
-        isLoaded = true;
+        refresingBottom = false;
+        isLoad = false;
       });
     }).catchError((onError) {
       setState(() {
-        isLoaded = true;
+        isLoad = false;
+        refresingBottom = false;
         isError = true;
       });
     });
   }
 
-  _getMoreInformatino(item) {
-    print(item);
+  _getMoreInformatino(item, index) {
+    setState(() {
+      initalIndex = index;
+      isDetail = true;
+    });
+  }
+
+  Widget errorMessage() {
+    return new Container(
+      child: new Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          new Text('Произошла ошибка'),
+          new FlatButton(
+            child: new Text('Повторить'),
+            textColor: Colors.blue,
+            onPressed: () {
+              setState(() {
+                refresingBottom = true;
+                isLoad = true;
+                isError = false;
+              });
+              getPeople();
+            },
+          )
+        ],
+      ),
+    );
   }
 
   Widget buildListPeople(BuildContext context, People item) {
@@ -71,7 +108,8 @@ class _HomePage extends State<HomePage> {
               subtitle: new Text(item.location.street + ', ' + item.location.postcode.toString() + ' ' + item.location.city + ' ' + item.location.state),
               leading: new Image.network(item.picture.thumbnail),
               onTap: () {
-                _getMoreInformatino(item);
+                var index = arrayPeople.indexOf(item);
+                _getMoreInformatino(item, index);
               }
             ),
           ),
@@ -79,6 +117,29 @@ class _HomePage extends State<HomePage> {
         ]
       ),
     );
+  }
+
+  _loadMorePeople(int index) {
+    print('Start');
+    httpClient.getPeople(count).then((res) {
+      if (res == "Error") {
+        setState(() {
+          initalIndex = index;
+          spanListError = true;
+        });
+      } else {
+        List responseJson = res['results'];
+        setState(() {
+          spanListError = false;
+          var items = responseJson.map((m) => new People.fromJson(m)).toList();
+          initalIndex = index;
+          arrayPeople = []..addAll(arrayPeople)..addAll(items);
+        });
+        print('End');
+      }
+    }).catchError((onError) {
+      print('error');
+    });
   }
 
   @override
@@ -94,45 +155,59 @@ class _HomePage extends State<HomePage> {
             fontSize: 16.0
           )
         ),
+        actions: <Widget>[
+          isDetail ? new IconButton(
+            icon: Icon(Icons.close),
+            color: Colors.white,
+            onPressed: () {
+              setState(() {
+                isDetail = false;
+              });
+            },
+          ) : new Container()
+        ],
         backgroundColor: Colors.blue,
         automaticallyImplyLeading: false,
       ),
       body: new SafeArea(
-        top: true,
-        bottom: true,
-        left: true,
-        right: true,
-        child: new Column(
-          children: <Widget>[
-            new Expanded(
-              child: new ListView(
-                controller: _scrollController,
-                children: listPeople.toList(),
-              )
+        child: (!isLoad || !isError) ? new Stack (
+          children: [
+            new Column(
+              children: <Widget>[
+                new Expanded(
+                  child: new ListView(
+                    controller: _scrollController,
+                    children: listPeople.toList(),
+                  ),
+                ),
+                refresingBottom ? new Container(
+                  padding: const EdgeInsets.only(top: 30, bottom: 30),
+                  child: new CircularProgressIndicator()
+                ) : new Container(),
+                isError ? errorMessage() : new Container(),
+              ],
             ),
-            !isLoaded ? new Container(
-              padding: const EdgeInsets.only(top: 30, bottom: 30),
-              child: new CircularProgressIndicator()
-            ) : new Container(),
-            isError ? new Container(
-              child: new Column(
-                children: <Widget>[
-                  new Text('Произошла ошибка'),
-                  new FlatButton(
-                    child: new Text('Повторить'),
-                    textColor: Colors.blue,
-                    onPressed: () {
-                      setState(() {
-                        isLoaded = false;
-                        isError = false;
-                      });
-                      getPeople();
-                    },
-                  )
-                ],
+            isDetail ? new BackdropFilter(
+              filter: new ImageFilter.blur(
+                sigmaX: 5, sigmaY: 5
               ),
+              child: new PeopleSpanlist(
+                controller: _snaplistController,
+                items: arrayPeople,
+                initialIndex: initalIndex,
+                loadMore: (int index) {
+                  setState(() {
+                    initalIndex = index;
+                  });
+                  this._loadMorePeople(index);
+                },
+                isError: spanListError,
+                errorMessage: errorMessage(),
+              )
             ) : new Container()
           ]
+        ) : new Center(
+          child: isError ? errorMessage() : new CircularProgressIndicator(),
         )
       )
     );
